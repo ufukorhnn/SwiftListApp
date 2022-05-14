@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UIViewController {
     
@@ -13,12 +14,13 @@ class ViewController: UIViewController {
 
     @IBOutlet weak var tableView: UITableView!
     
-    var data = [String]()
+    var data = [NSManagedObject]()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         tableView.delegate = self
         tableView.dataSource = self
+        fetch()
     }
     
     @IBAction func didRemoveButtonItemTapped(_ sender: UIBarButtonItem) {
@@ -45,8 +47,21 @@ class ViewController: UIViewController {
                      defaultButtonHandle: { _ in
             let text = self.alertController.textFields?.first?.text
             if text != "" {
-                    self.data.append((text)!)
-                    self.tableView.reloadData()
+                
+                let appDelegate = UIApplication.shared.delegate as? AppDelegate
+                
+                let managedObjectContext = appDelegate?.persistentContainer.viewContext
+                
+                let entity = NSEntityDescription.entity(forEntityName: "ListItem", in: managedObjectContext!)
+                
+                let listItem = NSManagedObject(entity: entity!, insertInto: managedObjectContext)
+                
+                listItem.setValue(text, forKey: "title")
+                
+                try? managedObjectContext?.save()
+                
+                
+                self.fetch()
                     }
             
                     else {
@@ -86,6 +101,17 @@ class ViewController: UIViewController {
         
         present(alertController, animated: true)
     }
+    func fetch() {
+        let appDelegate = UIApplication.shared.delegate as? AppDelegate
+        
+        let managedObjectContext = appDelegate?.persistentContainer.viewContext
+        
+        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "ListItem")
+        
+        data = try! managedObjectContext!.fetch(fetchRequest)
+        
+        tableView.reloadData()
+    }
 }
 
 extension ViewController: UITableViewDelegate, UITableViewDataSource {
@@ -97,7 +123,8 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "DefaultCell", for: indexPath)
-        cell.textLabel?.text = data[indexPath.row]
+        let listItem = data[indexPath.row]
+        cell.textLabel?.text = listItem.value(forKey: "title") as? String
         return cell
     }
     
@@ -105,8 +132,16 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
         
         let deleteAction = UIContextualAction(style: .normal, title: "Sil") { _, _, _ in
             
-            self.data.remove(at: indexPath.row)
-            tableView.reloadData()
+            
+            let appDelegate = UIApplication.shared.delegate as? AppDelegate
+            
+            let managedObjectContext = appDelegate?.persistentContainer.viewContext
+            
+            managedObjectContext?.delete(self.data[indexPath.row])
+            
+            try? managedObjectContext?.save()
+            
+            self.fetch()
         }
         
         deleteAction.backgroundColor = .systemRed
@@ -120,7 +155,17 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
                              defaultButtonHandle: { _ in
                 let text = self.alertController.textFields?.first?.text
                 if text != "" {
-                    self.data[indexPath.row] = text!
+                    
+                    let appDelegate = UIApplication.shared.delegate as? AppDelegate
+                    
+                    let managedObjectContext = appDelegate?.persistentContainer.viewContext
+                    
+                    self.data[indexPath.row].setValue(text, forKey: "title")
+                    
+                    if managedObjectContext!.hasChanges {
+                        try? managedObjectContext?.save()
+                    }
+                    
                         self.tableView.reloadData()
                         }
                 
